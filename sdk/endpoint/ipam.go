@@ -69,7 +69,19 @@ func (ice *IpamEndpoint) Request(ctx context.Context, request *networkservice.Ne
 
 	request.GetConnection().GetContext().GetIpContext().ExtraPrefixes = prefixes
 	if Next(ctx) != nil {
-		return Next(ctx).Request(ctx, request)
+		conn, err := Next(ctx).Request(ctx, request)
+		if err != nil {
+			prefix, requests, err := ice.PrefixPool.GetConnectionInformation(request.GetConnection().GetId())
+			Log(ctx).Infof("next Request failed, Release connection prefixes network: %s extra requests: %v", prefix, requests)
+			if err != nil {
+				Log(ctx).Errorf("Error: %v", err)
+			}
+			err = ice.PrefixPool.Release(request.GetConnection().GetId())
+			if err != nil {
+				Log(ctx).Error("Release error: ", err)
+			}
+		}
+		return conn, err
 	}
 	return request.GetConnection(), nil
 }
